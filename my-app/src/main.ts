@@ -1,6 +1,7 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'node:path';
 import started from 'electron-squirrel-startup';
+import { exec } from 'child_process';
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -52,3 +53,36 @@ app.on('activate', () => {
 
 // In this file you can include the rest of your app's specific main process
 // code. You can also put them in separate files and import them here.
+
+ipcMain.on('scan', () => {
+  exec('netsh wlan show interfaces', (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error executing netsh: ${error}`);
+      return;
+    }
+    if (stderr) {
+      console.error(`stderr: ${stderr}`);
+      return;
+    }
+    
+    // Parse the signal percentage from stdout
+    const signalMatch = stdout.match(/Signal\s+:\s+(\d+)%/);
+    if (signalMatch) {
+      const signalPercentage = parseInt(signalMatch[1]);
+      const signalDbm = percentageToDbm(signalPercentage);
+      console.log(`Signal: ${signalPercentage}% (${signalDbm} dBm)`);
+    } else {
+      console.log('Signal percentage not found in output');
+    }
+  });
+});
+
+function percentageToDbm(percentage: number) {
+  if (percentage < 0 || percentage > 100) {
+    throw new Error("Percentage must be between 0 and 100");
+  }
+
+  // Scale percentage (0–100) to dBm (-100 to -30)
+  const dbm = (percentage / 100) * 70 - 100;
+  return Math.round(dbm);
+}
